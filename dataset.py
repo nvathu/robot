@@ -16,15 +16,18 @@ class DepthDataset(Dataset):
             if not os.path.isdir(session_path):
                 continue
 
-            for f in os.listdir(session_path):
+            for sub in os.listdir(session_path):
+                sub_path = os.path.join(session_path,sub)
 
-                if f.endswith(".png"):
+                if os.path.isdir(sub_path):
+                    for f in os.listdir(sub_path):
+                        if f.endswith(".png"):
 
-                    rgb = os.path.join(session_path, f)
-                    depth = os.path.join(depth_root, session, f)
+                            rgb = os.path.join(session_path, f)
+                            depth = os.path.join(depth_root, session, f)
 
-                    if os.path.exists(depth):
-                        self.samples.append((rgb, depth))
+                            if os.path.exists(depth):
+                                self.samples.append((rgb, depth))
 
     def __len__(self):
         return len(self.samples)

@@ -39,23 +39,48 @@ def collect_images(root):
 image_list = collect_images(dataset)
 print("Total images:", len(image_list))
 
-for session, img_path in tqdm(image_list):
+BATCH_SIZE = 16 
 
-    img = cv2.imread(img_path)
-    img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+for i in tqdm(range(0, len(image_list), BATCH_SIZE)):
 
-    input_tensor = transform(img_rgb).to(device)
+    batch_items = image_list[i:i + BATCH_SIZE]
+
+    imgs = []
+    metas = []
+
+    for session, img_path in batch_items:
+
+        img = cv2.imread(img_path)
+        img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+
+        inp = transform(img_rgb) 
+
+        imgs.append(inp)
+        metas.append((session, img_path))
+
+    batch_tensor = torch.cat(imgs, dim=0).to(device)
 
     with torch.no_grad():
-        pred = midas(input_tensor)
+        pred = midas(batch_tensor)
 
-    pred = pred.squeeze().cpu().numpy()
+        pred = torch.nn.functional.interpolate(
+            pred.unsqueeze(1),
+            size=(384, 512),
+            mode="bicubic",
+            align_corners=False,
+        ).squeeze(1)
 
-    pred = cv2.normalize(pred, None, 0, 255, cv2.NORM_MINMAX)
-    pred = pred.astype(np.uint8)
+    pred = pred.cpu().numpy()
 
-    save_dir = os.path.join(output, session)
-    os.makedirs(save_dir, exist_ok=True)
+    for j, (session, img_path) in enumerate(metas):
 
-    filename = os.path.basename(img_path)
-    cv2.imwrite(os.path.join(save_dir, filename), pred)
+        depth = pred[j]
+
+        depth = cv2.normalize(depth, None, 0, 255, cv2.NORM_MINMAX)
+        depth = depth.astype(np.uint8)
+
+        save_dir = os.path.join(output, session)
+        os.makedirs(save_dir, exist_ok=True)
+
+        filename = os.path.basename(img_path)
+        cv2.imwrite(os.path.join(save_dir, filename), depth)

@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader,random_split
 from torch.utils.tensorboard import SummaryWriter
 
 from dataset import DepthDataset
