@@ -57,8 +57,8 @@ def collect_images(root):
 
 input_dir = "./dataset/rgb"
 output_dir = "./dataset/dinov3_depth"
-IMG_SIZE = 1024 
-BATCH_SIZE = 4  
+IMG_SIZE = 518
+BATCH_SIZE = 3  
 transform = make_transform(IMG_SIZE)
 
 image_list = collect_images(input_dir)
