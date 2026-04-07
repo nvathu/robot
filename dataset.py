@@ -10,20 +10,19 @@ class DepthDataset(Dataset):
         self.samples = []
 
         for session in os.listdir(rgb_root):
-
             session_path = os.path.join(rgb_root, session)
 
             if not os.path.isdir(session_path):
                 continue
 
             for sub in os.listdir(session_path):
-                sub_path = os.path.join(session_path,sub)
+                sub_path = os.path.join(session_path, sub)
 
                 if os.path.isdir(sub_path):
                     for f in os.listdir(sub_path):
-                        if f.endswith(".png"):
 
-                            rgb = os.path.join(session_path, f)
+                        if f.endswith(".png"):
+                            rgb = os.path.join(sub_path, f)
                             depth = os.path.join(depth_root, session, f)
 
                             if os.path.exists(depth):

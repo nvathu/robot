@@ -25,15 +25,15 @@ train_set, val_set, test_set = random_split(
     dataset, [train_size, val_size, test_size]
 )
 
-train_loader = DataLoader(train_set, batch_size=8, shuffle=True,num_workers=4)
-val_loader = DataLoader(val_set, batch_size=8, shuffle=False,num_workers=4)
-test_loader = DataLoader(test_set, batch_size=8, shuffle=False,num_workers=4)
+train_loader = DataLoader(train_set, batch_size=8, shuffle=True,num_workers=8)
+val_loader = DataLoader(val_set, batch_size=8, shuffle=False,num_workers=8)
+test_loader = DataLoader(test_set, batch_size=8, shuffle=False,num_workers=8)
 
 model = ResNetDepth().to(device)
 
 optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
-# loss_fn = nn.L1Loss()
-loss_fn = nn.CrossEntropyLoss()
+loss_fn = nn.L1Loss()
+# loss_fn = nn.CrossEntropyLoss()
 
 def log_images(writer, img, pred, target, epoch):
 
