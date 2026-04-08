@@ -64,7 +64,7 @@ def visualize(img, pred, target, epoch):
     plt.savefig(f"./outputs/epoch_{epoch}.png")
     plt.close()
 
-num_epochs = 5
+num_epochs = 100
 
 train_losses = []
 val_losses = []
