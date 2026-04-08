@@ -8,6 +8,7 @@ from model import ResNetDepth
 
 import matplotlib.pyplot as plt
 import os
+from pytorch_msssim import ssim
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 os.makedirs("./outputs", exist_ok=True)
@@ -32,8 +33,16 @@ test_loader = DataLoader(test_set, batch_size=8, shuffle=False,num_workers=8)
 model = ResNetDepth().to(device)
 
 optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
-loss_fn = nn.L1Loss()
+# loss_fn = nn.L1Loss()
 # loss_fn = nn.CrossEntropyLoss()
+def loss_fn(pred, target):
+
+    l1 = torch.nn.functional.l1_loss(pred, target)
+
+    ssim_loss = 1 - ssim(pred, target, data_range=1.0, size_average=True)
+
+    return l1 + 0.1 * ssim_loss
+
 
 def log_images(writer, img, pred, target, epoch):
 
