@@ -78,6 +78,10 @@ class ResNetDepth(nn.Module):
         self.layer3 = self._make_layer(256, 2, stride=2)
         self.layer4 = self._make_layer(512, 2, stride=2)
 
+        self.conv_x3 = nn.Conv2d(256, 512, 1)
+        self.conv_x2 = nn.Conv2d(128, 256, 1)
+        self.conv_x1 = nn.Conv2d(64, 128, 1)
+
 
 
         self.head = nn.Sequential(
@@ -134,10 +138,25 @@ class ResNetDepth(nn.Module):
         x4 = self.layer4(x3)    
 
 
-        d = F.interpolate(x4, scale_factor=2)
-        d=  d+x2
-        d = F.interpolate(x4, scale_factor=2)
-        d=  d+x1
+        d = F.interpolate(x4, scale_factor=2, mode='bilinear', align_corners=False)
+        x3 = self.conv_x3(x3)
+        d = d + x3
 
-        return x
+       
+        d = F.interpolate(d, scale_factor=2, mode='bilinear', align_corners=False)
+        x2 = self.conv_x2(x2)
+        d = d + x2
+
+        
+        d = F.interpolate(d, scale_factor=2, mode='bilinear', align_corners=False)
+        x1 = self.conv_x1(x1)
+        d = d + x1
+
+
+        self.head(d)
+        d = F.interpolate(d, size=(180, 180), mode='bilinear', align_corners=False)
+
+        return d
+
+        
 
