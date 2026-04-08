@@ -8,9 +8,12 @@ from model import ResNetDepth
 
 import matplotlib.pyplot as plt
 import os
+import shutil
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 os.makedirs("./outputs", exist_ok=True)
+if os.path.exists("./runs"):
+    shutil.rmtree("./runs")
 writer = SummaryWriter("./runs")
 
 dataset = DepthDataset("./dataset/rgb", "./dataset/depth")
