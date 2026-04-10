@@ -5,13 +5,18 @@ from torch.utils.tensorboard import SummaryWriter
 
 from dataset import DepthDataset
 from model import ResNetDepth
+from tqdm import tqdm
+import time
+from datetime import datetime
+from torch.utils.tensorboard import SummaryWriter
 
 import matplotlib.pyplot as plt
 import os
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 os.makedirs("./outputs", exist_ok=True)
-writer = SummaryWriter("./runs")
+run_name = datetime.now().strftime("%Y%m%d-%H%M%S")
+writer = SummaryWriter(f"./runs/{run_name}")
 
 dataset = DepthDataset("./dataset/rgb", "./dataset/depth")
 
@@ -71,13 +76,13 @@ val_losses = []
 
 fixed_img = None
 fixed_depth = None
-
+start_time = time.time()
 for epoch in range(num_epochs):
 
     model.train()
     train_loss = 0
 
-    for img, depth in train_loader:
+    for img, depth in tqdm(train_loader, desc=f"Epoch {epoch} [Train]"):
 
         img = img.to(device)
         depth = depth.to(device)
@@ -102,7 +107,7 @@ for epoch in range(num_epochs):
     val_loss = 0
 
     with torch.no_grad():
-        for img, depth in val_loader:
+        for img, depth in tqdm(val_loader, desc=f"Epoch {epoch} [Val]"):
             img = img.to(device)
             depth = depth.to(device)
 
@@ -137,6 +142,8 @@ for epoch in range(num_epochs):
         epoch
     )
     print(f"Epoch {epoch}: Train Loss={train_loss:.4f}, Val Loss={val_loss:.4f}")
+    end_time = time.time()
+    print(f"Total training time: {end_time - start_time:.2f} seconds")
 
 
 
