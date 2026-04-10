@@ -143,8 +143,8 @@ for epoch in range(num_epochs):
         epoch
     )
     print(f"Epoch {epoch}: Train Loss={train_loss:.4f}, Val Loss={val_loss:.4f}")
-    end_time = time.time()
-    print(f"Total training time: {end_time - start_time:.2f} seconds")
+end_time = time.time()
+print(f"Total training time: {end_time - start_time:.2f} seconds")
 
 
 
