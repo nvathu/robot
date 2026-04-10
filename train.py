@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader,random_split
 from torch.utils.tensorboard import SummaryWriter
+from datetime import datetime
 from tqdm import tqdm
 import time
 
@@ -14,7 +15,8 @@ import os
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 os.makedirs("./outputs", exist_ok=True)
-writer = SummaryWriter("./runs")
+run_name = datetime.now().strftime("%Y%m%d-%H%M%S")
+writer = SummaryWriter(f"./runs/{run_name}")
 
 dataset = DepthDataset("./dataset/rgb", "./dataset/depth")
 
