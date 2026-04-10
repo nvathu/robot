@@ -3,6 +3,7 @@ import torch.nn as nn
 from torch.utils.data import DataLoader,random_split
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
+import time
 
 from dataset import DepthDataset
 from model import ResNetDepth
@@ -66,14 +67,14 @@ def visualize(img, pred, target, epoch):
     plt.savefig(f"./outputs/epoch_{epoch}.png")
     plt.close()
 
-num_epochs = 5
+num_epochs = 3
 
 train_losses = []
 val_losses = []
 
 fixed_img = None
 fixed_depth = None
-
+start_time = time.time()
 for epoch in range(num_epochs):
 
     model.train()
@@ -140,6 +141,8 @@ for epoch in range(num_epochs):
         epoch
     )
     print(f"Epoch {epoch}: Train Loss={train_loss:.4f}, Val Loss={val_loss:.4f}")
+    end_time = time.time()
+    print(f"Total training time: {end_time - start_time:.2f} seconds")
 
 
 
