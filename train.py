@@ -2,9 +2,11 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader,random_split
 from torch.utils.tensorboard import SummaryWriter
+from tqdm import tqdm
 
 from dataset import DepthDataset
 from model import ResNetDepth
+
 
 import matplotlib.pyplot as plt
 import os
@@ -77,7 +79,7 @@ for epoch in range(num_epochs):
     model.train()
     train_loss = 0
 
-    for img, depth in train_loader:
+    for img, depth in tqdm(train_loader, desc=f"Epoch {epoch} [Train]"):
 
         img = img.to(device)
         depth = depth.to(device)
@@ -94,6 +96,7 @@ for epoch in range(num_epochs):
         optimizer.step()
 
         train_loss += loss.item()
+        
 
     train_loss /= len(train_loader)
     train_losses.append(train_loss)
@@ -102,7 +105,7 @@ for epoch in range(num_epochs):
     val_loss = 0
 
     with torch.no_grad():
-        for img, depth in val_loader:
+        for img, depth in tqdm(val_loader, desc=f"Epoch {epoch} [Val]"):
             img = img.to(device)
             depth = depth.to(device)
 

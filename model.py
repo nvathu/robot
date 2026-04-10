@@ -82,14 +82,13 @@ class ResNetDepth(nn.Module):
         self.conv_x2 = nn.Conv2d(128, 256, 1)
         self.conv_x1 = nn.Conv2d(64, 128, 1)
 
+        self.reduce_x4 = nn.Conv2d(512, 256, 1)
+        self.reduce_d2 = nn.Conv2d(256, 128, 1)
+
 
 
         self.head = nn.Sequential(
-            nn.Conv2d(512, 256, 3, padding=1),
-            nn.ReLU(),
-            nn.Upsample(scale_factor=2),
-
-            nn.Conv2d(256, 128, 3, padding=1),
+            nn.Conv2d(128, 128, 3, padding=1),
             nn.ReLU(),
             nn.Upsample(scale_factor=2),
 
@@ -99,8 +98,12 @@ class ResNetDepth(nn.Module):
 
             nn.Conv2d(64, 32, 3, padding=1),
             nn.ReLU(),
+            nn.Upsample(scale_factor=2),
 
-            nn.Conv2d(32, 1, 1)  
+            nn.Conv2d(32, 16, 3, padding=1),
+            nn.ReLU(),
+
+            nn.Conv2d(16, 1, 1)
         )
 
 
@@ -138,22 +141,23 @@ class ResNetDepth(nn.Module):
         x4 = self.layer4(x3)    
 
 
-        d = F.interpolate(x4, scale_factor=2, mode='bilinear', align_corners=False)
+        
         x3 = self.conv_x3(x3)
+        d = F.interpolate(x4, size=x3.shape[2:], mode='bilinear', align_corners=False)
         d = d + x3
 
-       
-        d = F.interpolate(d, scale_factor=2, mode='bilinear', align_corners=False)
         x2 = self.conv_x2(x2)
+        d = self.reduce_x4(d)
+        d = F.interpolate(d, size=x2.shape[2:], mode='bilinear', align_corners=False)
         d = d + x2
 
-        
-        d = F.interpolate(d, scale_factor=2, mode='bilinear', align_corners=False)
         x1 = self.conv_x1(x1)
+        d = self.reduce_d2(d)
+        d = F.interpolate(d, size=x1.shape[2:], mode='bilinear', align_corners=False)
         d = d + x1
 
 
-        self.head(d)
+        d = self.head(d)
         d = F.interpolate(d, size=(180, 180), mode='bilinear', align_corners=False)
 
         return d
