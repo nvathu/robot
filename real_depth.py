@@ -4,6 +4,8 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 import matplotlib.pyplot as plt
+from sklearn.metrics import r2_score
+
 
 
 
@@ -185,5 +187,11 @@ if __name__ == "__main__":
     
     plt.savefig("scatter.png")
     plt.show()
+
+    pred_dist = scale * depths + bias
+
+    r2 = r2_score(distances, pred_dist)
+    
+    print("R2 score:", r2)
 
     print("\nSaved to scale_bias.npy")
