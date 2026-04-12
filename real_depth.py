@@ -102,8 +102,14 @@ def get_depth_value(depth_path):
 
     h, w = depth.shape
 
+    crop = depth[
+        h//3 : 2*h//3,
+        w//3 : 2*w//3
+    ]
 
-    return depth[h // 2, w // 2]
+    depth_value = np.mean(crop)
+
+    return depth_value
 
 
 
