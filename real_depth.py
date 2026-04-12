@@ -3,6 +3,9 @@ import cv2
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
+import matplotlib.pyplot as plt
+
+
 
 
 
@@ -174,5 +177,13 @@ if __name__ == "__main__":
 
 
     np.save("scale_bias.npy", np.array([scale, bias]))
+
+    plt.scatter(depths, distances, alpha=0.3)
+    plt.xlabel("Depth (MiDaS)")
+    plt.ylabel("Distance (real)")
+    plt.title("Depth vs Distance")
+    
+    plt.savefig("scatter.png")
+    plt.show()
 
     print("\nSaved to scale_bias.npy")
