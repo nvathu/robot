@@ -205,7 +205,7 @@ if __name__ == "__main__":
 
     scale, bias = fit(train_d, train_y)
 
-    print("\n========================")
+    print("\n")
     print("Scale:", scale)
     print("Bias :", bias)
 
@@ -223,7 +223,7 @@ if __name__ == "__main__":
 
     plt.plot(x, y, color="red")
     plt.legend()
-    plt.title("Manual Click Depth → Distance")
+    plt.title("Depth → Distance")
 
     plt.savefig("result.png")
     plt.show()
