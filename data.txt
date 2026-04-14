@@ -1,0 +1,9 @@
+Train samples: 54
+Test samples : 16
+
+========================
+Scale: 8.354243619750077
+Bias : 441.8910937509144
+R2 score: 0.2336558337670409
+
+Saved scale_bias.npy
