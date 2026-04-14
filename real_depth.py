@@ -197,7 +197,7 @@ if __name__ == "__main__":
 
     np.random.shuffle(data)
 
-    split = int(len(data) * 0.8)
+    split = int(len(data) * 0.6)
 
     train = data[:split]
     test = data[split:]
