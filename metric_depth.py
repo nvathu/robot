@@ -4,7 +4,7 @@ import numpy as np
 from tqdm import tqdm
 
 DEPTH_INPUT = "./dataset/depth"      
-OUTPUT_DIR = "./dataset/depth_real"  
+OUTPUT_DIR = "./depth_real"  
 
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
