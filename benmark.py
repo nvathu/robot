@@ -8,7 +8,7 @@ from model import ResNetDepth
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 IMG_SIZE = (180, 180)
-NUM_RUNS = 10
+NUM_RUNS = 100
 
 
 print("Loading models...")
