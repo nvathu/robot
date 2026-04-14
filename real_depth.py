@@ -7,146 +7,233 @@ import matplotlib.pyplot as plt
 from sklearn.metrics import r2_score
 
 VALID_DIR = "./valid_data"
-RGB_ROOT = "./dataset/rgb"
-DEPTH_ROOT = "./dataset/depth"
+DEPTH_DIR = "./valid_data/depth"
+DEBUG_DIR = "./debug_vis"
+
+os.makedirs(DEBUG_DIR, exist_ok=True)
 
 
-def load_manual_split(valid_list, rgb_root):
+def load_valid_data(valid_dir):
+
+    csv_path = None
+    for f in os.listdir(valid_dir):
+        if f.endswith(".csv"):
+            csv_path = os.path.join(valid_dir, f)
+            break
+
+    df = pd.read_csv(csv_path)
+
     data = []
-    for img_name in valid_list:
-        found = False
 
-        for session in os.listdir(rgb_root):
-            session_path = os.path.join(rgb_root, session)
-            if not os.path.isdir(session_path):
-                continue
+    for _, row in df.iterrows():
 
-            for sub in os.listdir(session_path):
-                sub_path = os.path.join(session_path, sub)
-                if os.path.isdir(sub_path):
-                    candidate = os.path.join(sub_path, img_name)
-                    if os.path.exists(candidate):
-                        img_path = candidate
+        if pd.isna(row["self_pose_x"]) or pd.isna(row["car_S3_pose_x"]):
+            continue
 
-                        
-                        csv_files = [f for f in os.listdir(session_path) if f.endswith(".csv")]
-                        for csv_file in csv_files:
-                            df = pd.read_csv(os.path.join(session_path, csv_file))
-                            row = df[df["image"].str.contains(img_name, na=False)]
+        img_name = os.path.basename(str(row["image"]))
 
-                            if len(row) == 0:
-                                continue
+        img_path = None
+        depth_path = os.path.join(DEPTH_DIR, img_name)
 
-                            row = row.iloc[0]
-
-                            if (
-                                np.isnan(row["self_pose_x"])
-                                or np.isnan(row["car_S3_pose_x"])
-                            ):
-                                continue
-
-                            data.append({
-                                "session": session,
-                                "img_path": img_path,
-                                "self": (row["self_pose_x"], row["self_pose_y"]),
-                                "other": (row["car_S3_pose_x"], row["car_S3_pose_y"])
-                            })
-
-                            found = True
-                            break
-
-                if found:
-                    break
-            if found:
+        for root, _, files in os.walk(valid_dir):
+            if img_name in files:
+                img_path = os.path.join(root, img_name)
                 break
+
+        if img_path is None or not os.path.exists(depth_path):
+            continue
+
+        data.append({
+            "img": img_path,
+            "depth": depth_path,
+            "self": (row["self_pose_x"], row["self_pose_y"]),
+            "s1": (row["car_S1_pose_x"], row["car_S1_pose_y"]),
+            "s3": (row["car_S3_pose_x"], row["car_S3_pose_y"])
+        })
 
     return data
 
 
-def compute_distance(p1, p2):
-    return np.sqrt((p1[0] - p2[0])**2 + (p1[1] - p2[1])**2)
+
+def detect_robots(img):
+
+    gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+    blur = cv2.GaussianBlur(gray, (5,5), 0)
+
+    edges = cv2.Canny(blur, 50, 150)
+
+    kernel = np.ones((5,5), np.uint8)
+    edges = cv2.dilate(edges, kernel, iterations=2)
+
+    contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    H, W = img.shape[:2]
+    candidates = []
+
+    for c in contours:
+        area = cv2.contourArea(c)
+
+        if area < 1500 or area > 50000:
+            continue
+
+        x, y, w, h = cv2.boundingRect(c)
+
+        aspect = w / (h + 1e-6)
+
+        if 0.3 < aspect < 3.5:
+            cx = x + w//2
+            cy = y + h//2
+
+           
+            score = area * (cy / H)
+
+            candidates.append((score, (x,y,w,h)))
+
+    candidates = sorted(candidates, key=lambda x: x[0], reverse=True)
+
+    boxes = [b for _, b in candidates[:2]]
+
+    return boxes
 
 
-def get_depth_value(depth_path):
-    depth = cv2.imread(depth_path, cv2.IMREAD_GRAYSCALE)
-    if depth is None:
+
+def depth_from_bbox(depth, bbox):
+
+    x, y, w, h = bbox
+
+    roi = depth[y:y+h, x:x+w]
+
+    if roi.size == 0:
         return None
 
-    h, w = depth.shape
-    crop = depth[h // 3: 2 * h // 3, w // 3: 2 * w // 3]
-    return np.mean(crop)
+    return np.median(roi)
 
 
-def build_dataset(data_list):
+
+def compute_distance(p1, p2):
+    return np.linalg.norm(np.array(p1) - np.array(p2))
+
+
+def debug_visual(img, boxes, depth_map, save_path):
+
+    vis = img.copy()
+
+    for i, (x,y,w,h) in enumerate(boxes):
+
+        d = depth_from_bbox(depth_map, (x,y,w,h))
+
+        cv2.rectangle(vis, (x,y), (x+w,y+h), (0,255,0), 2)
+
+        label = f"B{i} d={d:.1f}" if d else "None"
+
+        cv2.putText(vis, label, (x, y-5),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,255,0), 1)
+
+    cv2.imwrite(save_path, cv2.cvtColor(vis, cv2.COLOR_RGB2BGR))
+
+
+def build_dataset(data):
+
     depths = []
     distances = []
 
-    for item in tqdm(data_list):
-        filename = os.path.basename(item["img_path"])
-        session = item["session"]
-        depth_path = os.path.join(DEPTH_ROOT, session, filename)
+    for item in tqdm(data):
 
-        if not os.path.exists(depth_path):
+        img = cv2.imread(item["img"])
+        if img is None:
             continue
 
-        depth_val = get_depth_value(depth_path)
-        if depth_val is None:
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+
+        depth = cv2.imread(item["depth"], cv2.IMREAD_GRAYSCALE)
+        if depth is None:
             continue
 
-        dist = compute_distance(item["self"], item["other"])
-        depths.append(depth_val)
-        distances.append(dist)
+        boxes = detect_robots(img)
+
+        if len(boxes) != 2:
+            continue
+
+        d1 = depth_from_bbox(depth, boxes[0])
+        d2 = depth_from_bbox(depth, boxes[1])
+
+        if d1 is None or d2 is None:
+            continue
+
+        
+        dist_s1 = compute_distance(item["self"], item["s1"])
+        dist_s3 = compute_distance(item["self"], item["s3"])
+
+        depths.append(d1)
+        distances.append(dist_s1)
+
+        depths.append(d2)
+        distances.append(dist_s3)
+
+        debug_visual(
+            img,
+            boxes,
+            depth,
+            os.path.join(DEBUG_DIR, os.path.basename(item["img"]))
+        )
 
     return np.array(depths), np.array(distances)
 
 
-def fit_scale_bias(depths, distances):
+
+def fit(depths, distances):
+
     A = np.vstack([depths, np.ones(len(depths))]).T
     scale, bias = np.linalg.lstsq(A, distances, rcond=None)[0]
+
     return scale, bias
 
 
+
 if __name__ == "__main__":
-    valid_images = sorted(os.listdir(VALID_DIR))
-    np.random.seed(42)
-    np.random.shuffle(valid_images)
 
-    print("Total valid images:", len(valid_images))
+    print("Loading data...")
+    data = load_valid_data(VALID_DIR)
 
-    split_idx = int(len(valid_images) * 0.8 )
-    train_imgs = valid_images[:split_idx]
-    test_imgs = valid_images[split_idx:]
+    np.random.shuffle(data)
 
-    train_data = load_manual_split(train_imgs, RGB_ROOT)
-    test_data = load_manual_split(test_imgs, RGB_ROOT)
+    split = int(len(data) * 0.8)
 
-    print("Train samples:", len(train_data))
-    print("Test samples :", len(test_data))
+    train = data[:split]
+    test = data[split:]
 
-    train_depths, train_distances = build_dataset(train_data)
-    test_depths, test_distances = build_dataset(test_data)
+    print("Train:", len(train))
+    print("Test :", len(test))
 
-    scale, bias = fit_scale_bias(train_depths, train_distances)
+    train_d, train_y = build_dataset(train)
+    test_d, test_y = build_dataset(test)
+
+    print("Train usable:", len(train_d))
+    print("Test usable :", len(test_d))
+
+    scale, bias = fit(train_d, train_y)
+
+    print("\n===== RESULT =====")
     print("Scale:", scale)
     print("Bias :", bias)
 
-    pred_test = scale * test_depths + bias
-    r2 = r2_score(test_distances, pred_test)
-    print("R2 score:", r2)
+    pred = scale * test_d + bias
+    r2 = r2_score(test_y, pred)
 
-    plt.scatter(train_depths, train_distances, label="Train")
-    plt.scatter(test_depths, test_distances, label="Test")
+    print("R2:", r2)
 
-    x_line = np.linspace(min(train_depths), max(train_depths), 100)
-    y_line = scale * x_line + bias
-    plt.plot(x_line, y_line, color="red", label="Fitted line")
+    plt.scatter(train_d, train_y, s=5, label="train")
+    plt.scatter(test_d, test_y, s=5, label="test")
 
-    plt.xlabel("Depth (MiDaS)")
-    plt.ylabel("Real Distance")
+    x = np.linspace(min(train_d), max(train_d), 100)
+    y = scale * x + bias
+
+    plt.plot(x, y, color="red")
     plt.legend()
-    plt.title("Depth → Distance")
+    plt.title("Depth → Distance (FIXED 2 ROBOTS)")
     plt.savefig("result.png")
     plt.show()
 
     np.save("scale_bias.npy", np.array([scale, bias]))
-    print("\nSaved to scale_bias.npy")
+
+    print("Saved OK")
