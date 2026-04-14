@@ -1,0 +1,19 @@
+Using cache found in /home/thu/.cache/torch/hub/intel-isl_MiDaS_master
+/home/thu/anaconda3/envs/robot_env/lib/python3.10/site-packages/timm/models/layers/__init__.py:49: FutureWarning: Importing from timm.models.layers is deprecated, please import via timm.layers
+  warnings.warn(f"Importing from {__name__} is deprecated, please import via timm.layers", FutureWarning)
+Using cache found in /home/thu/.cache/torch/hub/intel-isl_MiDaS_master
+Loading models...
+
+Running benchmark...
+
+Device: cpu
+
+ResNetDepth:
+  Avg time : 5.13 ms
+  FPS      : 194.82
+
+MiDaS (DPT_Large):
+  Avg time : 604.79 ms
+  FPS      : 1.65
+
+Speedup (ResNet vs MiDaS): 117.83x faster
