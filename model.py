@@ -81,18 +81,15 @@ class ResNetDepth(nn.Module):
 
 
         self.head = nn.Sequential(
-            nn.Conv2d(512, 256, 3, padding=1),
+            nn.ConvTranspose2d(512, 256, kernel_size=2, stride=2),
             nn.ReLU(),
-            nn.Upsample(scale_factor=2),
-
-            nn.Conv2d(256, 128, 3, padding=1),
+            
+            nn.ConvTranspose2d(256, 128, kernel_size=2, stride=2),
             nn.ReLU(),
-            nn.Upsample(scale_factor=2),
-
-            nn.Conv2d(128, 64, 3, padding=1),
+            
+            nn.ConvTranspose2d(128, 64, kernel_size=2, stride=2),
             nn.ReLU(),
-            nn.Upsample(scale_factor=2),
-
+            
             nn.Conv2d(64, 32, 3, padding=1),
             nn.ReLU(),
 
