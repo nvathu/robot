@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from tqdm import tqdm
 import time
 
@@ -15,9 +17,9 @@ import shutil
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 os.makedirs("./outputs", exist_ok=True)
-if os.path.exists("./runs"):
-    shutil.rmtree("./runs")
-writer = SummaryWriter("./runs")
+
+run_name = datetime.now().strftime("%Y%m%d-%H%M%S")
+writer = SummaryWriter(f"./runs/{run_name}")
 
 dataset = DepthDataset("./dataset/rgb", "./dataset/depth")
 
