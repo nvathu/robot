@@ -174,7 +174,7 @@ def build_dataset(data):
         scales.append(scale)
         biases.append(bias)
 
-        # debug
+       
         vis = img.copy()
         for p in pts:
             cv2.circle(vis, p, 5, (0, 255, 0), -1)
