@@ -3,7 +3,6 @@ import cv2
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from sklearn.metrics import r2_score
 from tqdm import tqdm
 
 VALID_DIR = "./valid_data"
@@ -11,6 +10,7 @@ DEPTH_DIR = "./valid_data/depth"
 DEBUG_DIR = "./debug_click"
 
 os.makedirs(DEBUG_DIR, exist_ok=True)
+
 
 
 def load_valid_data(valid_dir):
@@ -57,7 +57,6 @@ click_points = []
 
 def mouse_callback(event, x, y, flags, param):
     global click_points
-
     if event == cv2.EVENT_LBUTTONDOWN:
         click_points.append((x, y))
 
@@ -73,27 +72,20 @@ def get_2_clicks(img):
     cv2.setMouseCallback("Click Robot 1 & Robot 2", mouse_callback)
 
     while True:
-        cv2.imshow("Click Robot 1 & Robot 2", vis)
+        tmp = img.copy()
+
+        for i, p in enumerate(click_points):
+            cv2.circle(tmp, p, 5, (0, 255, 0), -1)
+
+        cv2.imshow("Click Robot 1 & Robot 2", tmp)
+
         key = cv2.waitKey(1)
 
-        # ENTER or SPACE to confirm
         if key == 13 or key == 32:
             break
-
-        # ESC skip
         if key == 27:
             click_points = []
             break
-
-       
-        tmp = img.copy()
-        for i, p in enumerate(click_points):
-            cv2.circle(tmp, p, 5, (0, 255, 0), -1)
-            cv2.putText(tmp, str(i), p,
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.6,
-                        (0, 255, 0), 2)
-
-        vis = tmp
 
     cv2.destroyAllWindows()
 
@@ -120,10 +112,28 @@ def compute_distance(p1, p2):
 
 
 
+def solve_scale_bias(z1, z2, d1, d2):
+
+    
+
+    A = np.array([
+        [z1, 1],
+        [z2, 1]
+    ])
+
+    b = np.array([d1, d2])
+
+    try:
+        s, bias = np.linalg.solve(A, b)
+        return s, bias
+    except:
+        return None, None
+
+
 def build_dataset(data):
 
-    depths = []
-    distances = []
+    scales = []
+    biases = []
 
     for item in tqdm(data):
 
@@ -138,29 +148,35 @@ def build_dataset(data):
             continue
 
         pts = get_2_clicks(img)
-
         if pts is None:
             continue
 
-        d1 = depth_at_point(depth, pts[0])
-        d2 = depth_at_point(depth, pts[1])
+        z1 = depth_at_point(depth, pts[0])
+        z2 = depth_at_point(depth, pts[1])
 
-        if d1 is None or d2 is None:
+        if z1 is None or z2 is None:
             continue
 
-        
-        depths.append(d1)
-        depths.append(d2)
+        d1 = compute_distance(item["self"], item["s1"])
+        d2 = compute_distance(item["self"], item["s3"])
 
-        dist1 = compute_distance(item["self"], item["s1"])
-        dist2 = compute_distance(item["self"], item["s3"])
+        print("\nImage:", item["img"])
+        print("Depth:", z1, z2)
+        print("Distance:", d1, d2)
 
-        distances.append(dist1)
-        distances.append(dist2)
+        scale, bias = solve_scale_bias(z1, z2, d1, d2)
 
-        
+        if scale is None:
+            continue
+
+        print("Scale:", scale, "Bias:", bias)
+
+        scales.append(scale)
+        biases.append(bias)
+
+        # debug
         vis = img.copy()
-        for i, p in enumerate(pts):
+        for p in pts:
             cv2.circle(vis, p, 5, (0, 255, 0), -1)
 
         cv2.imwrite(
@@ -168,15 +184,8 @@ def build_dataset(data):
             cv2.cvtColor(vis, cv2.COLOR_RGB2BGR)
         )
 
-    return np.array(depths), np.array(distances)
+    return np.array(scales), np.array(biases)
 
-
-
-def fit(depths, distances):
-
-    A = np.vstack([depths, np.ones(len(depths))]).T
-    scale, bias = np.linalg.lstsq(A, distances, rcond=None)[0]
-    return scale, bias
 
 
 if __name__ == "__main__":
@@ -194,40 +203,34 @@ if __name__ == "__main__":
     print("Train:", len(train))
     print("Test :", len(test))
 
-    print("\n--- TRAIN PHASE (click manual) ---")
-    train_d, train_y = build_dataset(train)
+    print("\n TRAIN ")
+    train_s, train_b = build_dataset(train)
 
-    print("\n--- TEST PHASE (click manual) ---")
-    test_d, test_y = build_dataset(test)
+    print("\n TEST ")
+    test_s, test_b = build_dataset(test)
 
-    print("Train samples:", len(train_d))
-    print("Test samples :", len(test_d))
-
-    scale, bias = fit(train_d, train_y)
-
-    print("\n")
-    print("Scale:", scale)
-    print("Bias :", bias)
-
-    pred = scale * test_d + bias
-    r2 = r2_score(test_y, pred)
-
-    print("R2 score:", r2)
+ 
+    np.save("scale_bias.npy", np.array([
+        np.mean(train_s),
+        np.mean(train_b)
+    ]))
 
    
-    plt.scatter(train_d, train_y, label="train")
-    plt.scatter(test_d, test_y, label="test")
+    print("Mean Scale:", np.mean(train_s))
+    print("Mean Bias :", np.mean(train_b))
 
-    x = np.linspace(min(train_d), max(train_d), 100)
-    y = scale * x + bias
 
-    plt.plot(x, y, color="red")
-    plt.legend()
-    plt.title("Depth → Distance")
+    plt.figure()
 
-    plt.savefig("result.png")
+    plt.subplot(1,2,1)
+    plt.hist(train_s, bins=20)
+    plt.title("Scale distribution")
+
+    plt.subplot(1,2,2)
+    plt.hist(train_b, bins=20)
+    plt.title("Bias distribution")
+
+    plt.savefig("scale_bias_dist.png")
     plt.show()
 
-    np.save("scale_bias.npy", np.array([scale, bias]))
-
-    print("\nSaved scale_bias.npy")
+    print("\nSaved scale_bias.npy + plot")
