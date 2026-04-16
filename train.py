@@ -1,3 +1,4 @@
+import cv2
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader,random_split
@@ -9,14 +10,18 @@ from tqdm import tqdm
 import time
 from datetime import datetime
 from torch.utils.tensorboard import SummaryWriter
+from torchvision.utils import make_grid
 
 import matplotlib.pyplot as plt
 import os
+import numpy as np
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 os.makedirs("./outputs", exist_ok=True)
 run_name = datetime.now().strftime("%Y%m%d-%H%M%S")
 writer = SummaryWriter(f"./runs/{run_name}")
+
+
 
 dataset = DepthDataset("./dataset/rgb", "./dataset/depth")
 
@@ -40,42 +45,50 @@ optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 loss_fn = nn.L1Loss()
 # loss_fn = nn.CrossEntropyLoss()
 
-def log_images(writer, img, pred, target, epoch):
+def to_inferno(tensor):
+    
+    img = tensor.detach().cpu().numpy()[0]
 
-    writer.add_image("Input", img, epoch)
-    writer.add_image("Prediction", pred, epoch)
-    writer.add_image("GroundTruth", target, epoch)
+    img = (img - img.min()) / (img.max() - img.min() + 1e-6)
+    img = (img * 255).astype(np.uint8)
 
-def visualize(img, pred, target, epoch):
-    img = img.permute(1,2,0).cpu().numpy()
-    pred = pred.detach().cpu().numpy()[0]
-    target = target.detach().cpu().numpy()[0]
+    img_color = cv2.applyColorMap(img, cv2.COLORMAP_INFERNO)
+    img_color = cv2.cvtColor(img_color, cv2.COLOR_BGR2RGB)
 
-    plt.figure(figsize=(10,3))
+    img_color = torch.tensor(img_color).permute(2, 0, 1).float() / 255.0
 
-    plt.subplot(1,3,1)
-    plt.imshow(img)
-    plt.title("Input")
+    return img_color
 
-    plt.subplot(1,3,2)
-    plt.imshow(pred, cmap="inferno")
-    plt.title("Prediction")
+def log_images(writer, imgs, preds, targets, epoch):
 
-    plt.subplot(1,3,3)
-    plt.imshow(target, cmap="inferno")
-    plt.title("GT")
+    N = min(20, imgs.shape[0])
 
-    plt.tight_layout()
-    plt.savefig(f"./outputs/epoch_{epoch}.png")
-    plt.close()
+    for i in range(N):
 
-num_epochs = 5
+        writer.add_image(
+            f"Input/{i}",
+            imgs[i].cpu(),
+            epoch
+        )
+
+        writer.add_image(
+            f"Prediction/{i}",
+            to_inferno(preds[i]),
+            epoch
+        )
+
+        writer.add_image(
+            f"GT/{i}",
+            to_inferno(targets[i]),
+            epoch
+        )
+
+num_epochs = 100
 
 train_losses = []
 val_losses = []
 
-fixed_img = None
-fixed_depth = None
+
 start_time = time.time()
 for epoch in range(num_epochs):
 
@@ -87,10 +100,6 @@ for epoch in range(num_epochs):
         img = img.to(device)
         depth = depth.to(device)
 
-        if fixed_img is None:
-            fixed_img = img[0].unsqueeze(0).clone()
-            fixed_depth = depth[0].unsqueeze(0).clone()
-
         pred = model(img)
         loss = loss_fn(pred, depth)
 
@@ -99,6 +108,7 @@ for epoch in range(num_epochs):
         optimizer.step()
 
         train_loss += loss.item()
+
 
     train_loss /= len(train_loader)
     train_losses.append(train_loss)
@@ -126,21 +136,20 @@ for epoch in range(num_epochs):
 
 
     with torch.no_grad():
-        fixed_pred = model(fixed_img.to(device))
-    
+        sample_imgs, sample_depths = next(iter(val_loader))
+
+        sample_imgs = sample_imgs.to(device)
+        sample_preds = model(sample_imgs)
+
     log_images(
         writer,
-        fixed_img[0].cpu(),
-        fixed_pred[0].cpu(),
-        fixed_depth[0].cpu(),
+        sample_imgs,
+        sample_preds,
+        sample_depths,
         epoch
     )
-    visualize(
-        fixed_img[0].cpu(),
-        fixed_pred[0].cpu(),
-        fixed_depth[0].cpu(),
-        epoch
-    )
+
+    
     print(f"Epoch {epoch}: Train Loss={train_loss:.4f}, Val Loss={val_loss:.4f}")
 end_time = time.time()
 print(f"Total training time: {end_time - start_time:.2f} seconds")
