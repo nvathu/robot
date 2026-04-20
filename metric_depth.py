@@ -51,7 +51,7 @@ for session in os.listdir(DEPTH_INPUT):
         )
 
         vis = real_depth.copy()
-        vis = vis / (vis.max() + 1e-6) * 255
+        vis = vis / (vis.max() + 0.000001) * 255
         vis = vis.astype(np.uint8)
 
         cv2.imwrite(

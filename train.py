@@ -49,7 +49,7 @@ def to_inferno(tensor):
     
     img = tensor.detach().cpu().numpy()[0]
 
-    img = (img - img.min()) / (img.max() - img.min() + 1e-6)
+    img = (img - img.min()) / (img.max() - img.min() + 0.000001)
     img = (img * 255).astype(np.uint8)
 
     img_color = cv2.applyColorMap(img, cv2.COLORMAP_INFERNO)
