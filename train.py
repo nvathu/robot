@@ -42,7 +42,8 @@ test_loader = DataLoader(test_set, batch_size=8, shuffle=False,num_workers=8)
 model = ResNetDepth().to(device)
 
 optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
-loss_fn = nn.L1Loss()
+# loss_fn = nn.L1Loss()
+loss_fn = nn.MSELoss()
 # loss_fn = nn.CrossEntropyLoss()
 
 def to_inferno(tensor):
@@ -83,7 +84,7 @@ def log_images(writer, imgs, preds, targets, epoch):
             epoch
         )
 
-num_epochs = 300
+num_epochs = 5
 
 train_losses = []
 val_losses = []

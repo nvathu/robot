@@ -23,10 +23,10 @@ depther = torch.hub.load(
     pretrained=False
 ).to(device).eval()
 
-def make_transform(resize_size: int | list[int] = 768):
+def make_transform(size=518):
     return v2.Compose([
         v2.ToImage(),
-        v2.Resize((resize_size, resize_size), antialias=True),
+        v2.Resize((size, size), antialias=True),
         v2.ToDtype(torch.float32, scale=True),
         v2.Normalize(
             mean=(0.485, 0.456, 0.406),
@@ -52,6 +52,9 @@ def collect_images(root):
                         image_paths.append((session, sub, os.path.join(sub_path, f)))
 
     return image_paths
+
+def normalize_global(depth):
+    return (depth - depth.min()) / (depth.max() - depth.min() + 1e-8)
 
 
 
@@ -89,13 +92,20 @@ for i in tqdm(range(0, len(image_list), BATCH_SIZE)):
         depth = preds_np[j]
         
         
-        d_min, d_max = depth.min(), depth.max()
-        depth_norm = (depth - d_min) / (d_max - d_min + 1e-8)
+        depth_norm = normalize_global(depth)
+
         depth_uint8 = (depth_norm * 255).astype(np.uint8)
 
-
-        depth_final = cv2.resize(depth_uint8, (ow, oh), interpolation=cv2.INTER_CUBIC)
+        depth_final = cv2.resize(
+            depth_uint8,
+            (ow, oh),
+            interpolation=cv2.INTER_CUBIC
+        )
 
         save_path = os.path.join(output_dir, session, sub)
         os.makedirs(save_path, exist_ok=True)
-        cv2.imwrite(os.path.join(save_path, os.path.basename(img_path)), depth_final)
+
+        cv2.imwrite(
+            os.path.join(save_path, os.path.basename(img_path)),
+            depth_final
+        )
