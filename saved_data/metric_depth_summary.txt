@@ -1,0 +1,9 @@
+METRIC DEPTH EVALUATION
+Scale: 21.13313588413872
+Bias : -590.1891046959992
+
+RMSE          : 246.6884
+Abs Rel Error : 0.1902
+Delta <1.25   : 0.6571
+Delta <1.25²  : 0.9286
+Delta <1.25³  : 1.0000

@@ -370,8 +370,6 @@ def build_dataset(data):
 
     return np.array(scales), np.array(biases)
 
-
-=
 if __name__ == "__main__":
 
     print("Loading data...")
