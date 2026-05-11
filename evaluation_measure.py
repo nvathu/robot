@@ -16,7 +16,6 @@ PAIR_FILE = os.path.join(SAVE_DIR, "depth_distance_pairs.csv")
 SCALE_BIAS_FILE = os.path.join(SAVE_DIR, "scale_bias.npy")
 
 
-
 def load_valid_data(valid_dir):
 
     csv_path = None
@@ -79,7 +78,6 @@ def load_valid_data(valid_dir):
     return data
 
 
-
 def compute_distance(p1, p2):
 
     return np.linalg.norm(
@@ -97,7 +95,6 @@ def depth_at_point(depth, pt):
         return None
 
     return float(depth[y, x])
-
 
 
 def compute_rmse(gt, pred):
@@ -133,12 +130,9 @@ def compute_delta(gt, pred, threshold=1.25):
     return np.mean(ratio < threshold)
 
 
-
 if __name__ == "__main__":
 
-    
     print("METRIC DEPTH EVALUATION")
-    
 
     print("\nLoading valid data...")
 
@@ -157,7 +151,6 @@ if __name__ == "__main__":
     print("Loaded click points:",
           len(click_data))
 
-    
     print("\nLoading scale & bias...")
 
     if not os.path.exists(SCALE_BIAS_FILE):
@@ -168,7 +161,6 @@ if __name__ == "__main__":
     print("Global Scale:", scale)
     print("Global Bias :", bias)
 
-   
     gt_depths = []
     pred_depths = []
 
@@ -194,14 +186,12 @@ if __name__ == "__main__":
         if depth is None:
             continue
 
-        
         z1 = depth_at_point(depth, pt1)
         z2 = depth_at_point(depth, pt2)
 
         if z1 is None or z2 is None:
             continue
 
-        
         d1 = compute_distance(
             item["self"],
             item["s1"]
@@ -215,7 +205,6 @@ if __name__ == "__main__":
         pred1 = scale * z1 + bias
         pred2 = scale * z2 + bias
 
-        
         gt_depths.extend([d1, d2])
 
         pred_depths.extend([
@@ -240,7 +229,6 @@ if __name__ == "__main__":
             "error2": abs(pred2 - d2)
         })
 
-       
         print("\nImage:", img_name)
 
         print("\nRelative Depth:")
@@ -255,7 +243,6 @@ if __name__ == "__main__":
         print("Robot1:", pred1)
         print("Robot2:", pred2)
 
-    
     rmse = compute_rmse(
         gt_depths,
         pred_depths
@@ -284,9 +271,7 @@ if __name__ == "__main__":
         threshold=1.25 ** 3
     )
 
-    
     print("\nFINAL METRIC DEPTH RESULT")
-
 
     print(f"RMSE          : {rmse:.4f}")
 
@@ -297,7 +282,6 @@ if __name__ == "__main__":
     print(f"Delta <1.25²  : {delta_125_2:.4f}")
 
     print(f"Delta <1.25³  : {delta_125_3:.4f}")
-
 
     result_csv = os.path.join(
         SAVE_DIR,
@@ -314,7 +298,6 @@ if __name__ == "__main__":
     print("\nSaved detailed results:")
     print(result_csv)
 
-    
     txt_path = os.path.join(
         SAVE_DIR,
         "metric_depth_summary.txt"
@@ -323,7 +306,6 @@ if __name__ == "__main__":
     with open(txt_path, "w") as f:
 
         f.write("METRIC DEPTH EVALUATION\n")
-        
 
         f.write(f"Scale: {scale}\n")
         f.write(f"Bias : {bias}\n\n")

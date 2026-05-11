@@ -21,19 +21,15 @@ SCALE_BIAS_SAVE = os.path.join(SAVE_DIR, "scale_bias.npy")
 
 
 def load_valid_data(valid_dir):
-
     csv_path = None
-
     for f in os.listdir(valid_dir):
         if f.endswith(".csv"):
             csv_path = os.path.join(valid_dir, f)
             break
-
     if csv_path is None:
-        raise Exception("No CSV found in valid_data")
+        raise Exception("No CSV found")
 
     df = pd.read_csv(csv_path)
-
     data = []
 
     for _, row in df.iterrows():
@@ -89,7 +85,6 @@ def load_valid_data(valid_dir):
     return data
 
 
-
 click_points = []
 
 
@@ -108,6 +103,7 @@ def get_2_clicks(img):
     click_points = []
 
     cv2.namedWindow("Click Robot 1 and Robot 2")
+
     cv2.setMouseCallback(
         "Click Robot 1 and Robot 2",
         mouse_callback
@@ -119,7 +115,13 @@ def get_2_clicks(img):
 
         for i, p in enumerate(click_points):
 
-            cv2.circle(vis, p, 6, (0, 255, 0), -1)
+            cv2.circle(
+                vis,
+                p,
+                6,
+                (0, 255, 0),
+                -1
+            )
 
             cv2.putText(
                 vis,
@@ -139,7 +141,7 @@ def get_2_clicks(img):
         if key == 13 or key == 32:
             break
 
-        # ESC
+        # ESC skip
         if key == 27:
             click_points = []
             break
@@ -161,7 +163,14 @@ def depth_at_point(depth, pt):
     if x < 0 or y < 0 or x >= w or y >= h:
         return None
 
-    return float(depth[y, x])
+    roi = depth[
+        max(0, y-3):min(h, y+4),
+        max(0, x-3):min(w, x+4)
+    ]
+
+    roi = roi.astype(np.float32)
+
+    return float(np.median(roi))
 
 
 def compute_distance(p1, p2):
@@ -209,6 +218,31 @@ def save_clicks(click_data):
         json.dump(click_data, f, indent=4)
 
 
+def reorder_distances(z1, z2, d1, d2):
+    """
+    Larger relative depth => closer robot
+    Closer robot => smaller real distance
+
+    So:
+        if z1 > z2
+        then d1 should < d2
+    """
+
+    original = (d1, d2)
+
+    need_swap = False
+
+    if z1 > z2 and d1 > d2:
+        need_swap = True
+
+    if z2 > z1 and d2 > d1:
+        need_swap = True
+
+    if need_swap:
+        d1, d2 = d2, d1
+
+    return d1, d2, need_swap, original
+
 
 def build_dataset(data):
 
@@ -223,13 +257,15 @@ def build_dataset(data):
 
         img_name = item["img_name"]
 
-        
         img = cv2.imread(item["img"])
 
         if img is None:
             continue
 
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        img = cv2.cvtColor(
+            img,
+            cv2.COLOR_BGR2RGB
+        )
 
         depth = cv2.imread(
             item["depth"],
@@ -239,7 +275,6 @@ def build_dataset(data):
         if depth is None:
             continue
 
-        
         if img_name in click_data:
 
             pts = click_data[img_name]
@@ -264,14 +299,12 @@ def build_dataset(data):
 
             save_clicks(click_data)
 
-       
         z1 = depth_at_point(depth, pts[0])
         z2 = depth_at_point(depth, pts[1])
 
         if z1 is None or z2 is None:
             continue
 
-      
         d1 = compute_distance(
             item["self"],
             item["s1"]
@@ -282,42 +315,61 @@ def build_dataset(data):
             item["s3"]
         )
 
-       
-        scale, bias = solve_scale_bias(
+        # higer midas -> closer object -> brighter visual
+        d1_fixed, d2_fixed, swapped, original = reorder_distances(
             z1, z2,
             d1, d2
+        )
+
+        scale, bias = solve_scale_bias(
+            z1, z2,
+            d1_fixed, d2_fixed
         )
 
         if scale is None:
             continue
 
-       
-        print("\nImage:", img_name)
+        if abs(scale) > 200:
+            continue
+
+        print("Image:", img_name)
 
         print("\nDepth:")
-        print("Robot1:", z1)
-        print("Robot2:", z2)
+        print("z1:", z1)
+        print("z2:", z2)
 
-        print("\nDistance:")
-        print("Robot1:", d1)
-        print("Robot2:", d2)
+        print("\nOriginal Distance:")
+        print("d1:", original[0])
+        print("d2:", original[1])
+
+        if swapped:
+            print("\nSWAPPED ROBOT ORDER")
+
+        print("\nFinal Distance:")
+        print("d1:", d1_fixed)
+        print("d2:", d2_fixed)
 
         print("\nSolved:")
         print("Scale:", scale)
         print("Bias :", bias)
 
-        
         scales.append(scale)
         biases.append(bias)
 
         pair_rows.append({
+
             "image": img_name,
 
             "z1": z1,
             "z2": z2,
 
-            "d1": d1,
-            "d2": d2,
+            "d1_original": original[0],
+            "d2_original": original[1],
+
+            "d1_final": d1_fixed,
+            "d2_final": d2_fixed,
+
+            "swapped": swapped,
 
             "scale": scale,
             "bias": bias,
@@ -329,7 +381,6 @@ def build_dataset(data):
             "y2": pts[1][1]
         })
 
-        
         vis = img.copy()
 
         for i, p in enumerate(pts):
@@ -357,7 +408,6 @@ def build_dataset(data):
             cv2.cvtColor(vis, cv2.COLOR_RGB2BGR)
         )
 
-   
     df = pd.DataFrame(pair_rows)
 
     df.to_csv(
@@ -369,6 +419,7 @@ def build_dataset(data):
     print(PAIR_SAVE)
 
     return np.array(scales), np.array(biases)
+
 
 if __name__ == "__main__":
 
@@ -386,17 +437,16 @@ if __name__ == "__main__":
     print("\nTrain:", len(train))
     print("Test :", len(test))
 
-    print("\n TRAIN ")
+    print("\nTRAIN")
 
     train_s, train_b = build_dataset(train)
 
-    print("\n TEST")
+    print("\nTEST")
 
     test_s, test_b = build_dataset(test)
 
-   
-    mean_scale = np.mean(train_s)
-    mean_bias = np.mean(train_b)
+    mean_scale = np.median(train_s)
+    mean_bias = np.median(train_b)
 
     np.save(
         SCALE_BIAS_SAVE,
@@ -406,8 +456,7 @@ if __name__ == "__main__":
         ])
     )
 
-   
-    print("\nFINAL RESULT")
+    print("FINAL RESULT")
 
     print("Mean Scale:", mean_scale)
     print("Mean Bias :", mean_bias)
@@ -415,9 +464,7 @@ if __name__ == "__main__":
     print("\nSaved:")
     print(SCALE_BIAS_SAVE)
 
-  
     plt.figure(figsize=(10, 4))
-
     plt.subplot(1, 2, 1)
 
     plt.hist(train_s, bins=20)
