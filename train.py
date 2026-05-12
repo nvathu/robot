@@ -23,7 +23,7 @@ writer = SummaryWriter(f"./runs/{run_name}")
 
 
 
-dataset = DepthDataset("./dataset/rgb", "./dataset/depth")
+dataset = DepthDataset("./dataset/rgb", "./dataset/depth_npy")
 
 total_size = len(dataset)
 
