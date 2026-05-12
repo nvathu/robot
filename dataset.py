@@ -88,7 +88,7 @@ class DepthDataset(Dataset):
         )
         depth = np.log(depth + 1.0)
 
-        depth = depth / depth.max()
+        depth = depth / 10.0
 
         depth = torch.tensor(depth).unsqueeze(0)
 
