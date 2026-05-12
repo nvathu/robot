@@ -88,14 +88,7 @@ class DepthDataset(Dataset):
         )
         depth = np.log(depth + 1.0)
 
-        depth_mean = depth.mean()
-        depth_std = depth.std()
-
-        depth = (
-            depth - depth_mean
-        ) / (
-            depth_std + 1e-6
-        )
+        depth = depth / depth.max()
 
         depth = torch.tensor(depth).unsqueeze(0)
 
