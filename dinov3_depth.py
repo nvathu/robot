@@ -61,7 +61,7 @@ def normalize_global(depth):
 input_dir = "./dataset/rgb"
 output_dir = "./dataset/dinov3_depth"
 IMG_SIZE = 518
-BATCH_SIZE = 3  
+BATCH_SIZE = 16  
 transform = make_transform(IMG_SIZE)
 
 image_list = collect_images(input_dir)
