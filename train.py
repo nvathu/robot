@@ -84,7 +84,7 @@ def log_images(writer, imgs, preds, targets, epoch):
             epoch
         )
 
-num_epochs = 5
+num_epochs = 1
 
 train_losses = []
 val_losses = []
@@ -129,6 +129,17 @@ for epoch in range(num_epochs):
 
     val_loss /= len(val_loader)
     val_losses.append(val_loss)
+    with torch.no_grad():
+       
+        sample_imgs, sample_depths = next(iter(val_loader))
+        sample_preds = model(sample_imgs.to(device))
+        
+        print(f"check Depth at Epoch {epoch} ")
+        print(f"Pred - Min: {sample_preds.min().item():.4f}, Max: {sample_preds.max().item():.4f}")
+        print(f"GT   - Min: {sample_depths.min().item():.4f}, Max: {sample_depths.max().item():.4f}")
+    
+
+    
 
 
     writer.add_scalar("Loss/train", train_loss, epoch)
