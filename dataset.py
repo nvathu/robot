@@ -1,7 +1,6 @@
 import os
 import cv2
 import torch
-import numpy as np
 from torch.utils.data import Dataset
 
 class DepthDataset(Dataset):
@@ -10,55 +9,24 @@ class DepthDataset(Dataset):
 
         self.samples = []
 
-        self.rgb_root = rgb_root
-        self.depth_root = depth_root
-
         for session in os.listdir(rgb_root):
-
-            session_path = os.path.join(
-                rgb_root,
-                session
-            )
+            session_path = os.path.join(rgb_root, session)
 
             if not os.path.isdir(session_path):
                 continue
 
             for sub in os.listdir(session_path):
+                sub_path = os.path.join(session_path, sub)
 
-                sub_path = os.path.join(
-                    session_path,
-                    sub
-                )
+                if os.path.isdir(sub_path):
+                    for f in os.listdir(sub_path):
 
-                if not os.path.isdir(sub_path):
-                    continue
+                        if f.endswith(".png"):
+                            rgb = os.path.join(sub_path, f)
+                            depth = os.path.join(depth_root, session, f)
 
-                for f in os.listdir(sub_path):
-
-                    if not f.endswith(".png"):
-                        continue
-
-                    rgb_path = os.path.join(
-                        sub_path,
-                        f
-                    )
-
-                    
-                    npy_name = os.path.splitext(f)[0] + ".npy"
-
-                    depth_path = os.path.join(
-                        depth_root,
-                        session,
-                        npy_name
-                    )
-
-                    if os.path.exists(depth_path):
-
-                        self.samples.append(
-                            (rgb_path, depth_path)
-                        )
-
-        print("Dataset size:", len(self.samples))
+                            if os.path.exists(depth):
+                                self.samples.append((rgb, depth))
 
     def __len__(self):
         return len(self.samples)
@@ -66,30 +34,15 @@ class DepthDataset(Dataset):
     def __getitem__(self, idx):
 
         rgb_path, depth_path = self.samples[idx]
+
         img = cv2.imread(rgb_path)
-        img = cv2.cvtColor(
-            img,
-            cv2.COLOR_BGR2RGB
-        )
-        img = cv2.resize(
-            img,
-            (180, 180),
-            interpolation=cv2.INTER_AREA
-        )
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        img = cv2.resize(img, (180,180))
 
-        img = img.astype(np.float32) / 255.0
-        img = torch.tensor(img).permute(2, 0, 1)
-        depth = np.load(depth_path).astype(np.float32)
+        depth = cv2.imread(depth_path, cv2.IMREAD_GRAYSCALE)
+        depth = cv2.resize(depth, (180,180))
 
-        depth = cv2.resize(
-            depth,
-            (180, 180),
-            interpolation=cv2.INTER_LINEAR
-        )
-        depth = np.log(depth + 1.0)
+        img = torch.tensor(img/255.).permute(2,0,1).float()
+        depth = torch.tensor(depth/255.).unsqueeze(0).float()
 
-        depth = depth / 10.0
-
-        depth = torch.tensor(depth).unsqueeze(0)
-
-        return img.float(), depth.float()
+        return img, depth

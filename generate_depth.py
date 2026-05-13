@@ -5,11 +5,9 @@ import numpy as np
 from tqdm import tqdm
 
 dataset = "./dataset/rgb"
-OUTPUT_NPY = "./dataset/depth_npy"
-OUTPUT_VIS = "./dataset/depth"
+output = "./dataset/depth"
 
-os.makedirs(OUTPUT_NPY, exist_ok=True)
-os.makedirs(OUTPUT_VIS, exist_ok=True)
+os.makedirs(output, exist_ok=True)
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -54,8 +52,9 @@ for i in tqdm(range(0, len(image_list), BATCH_SIZE)):
 
         img = cv2.imread(img_path)
         img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        H, W = img_rgb.shape[:2]
+
         inp = transform(img_rgb) 
+
         imgs.append(inp)
         metas.append((session, img_path))
 
@@ -64,31 +63,24 @@ for i in tqdm(range(0, len(image_list), BATCH_SIZE)):
     with torch.no_grad():
         pred = midas(batch_tensor)
 
+        pred = torch.nn.functional.interpolate(
+            pred.unsqueeze(1),
+            size=(384, 512),
+            mode="bicubic",
+            align_corners=False,
+        ).squeeze(1)
+
+    pred = pred.cpu().numpy()
+
     for j, (session, img_path) in enumerate(metas):
 
         depth = pred[j]
 
-        depth = torch.nn.functional.interpolate(
-            depth.unsqueeze(0).unsqueeze(0),
-            size=(H, W),
-            mode="bicubic",
-            align_corners=False
-        ).squeeze()
+        depth = cv2.normalize(depth, None, 0, 255, cv2.NORM_MINMAX)
+        depth = depth.astype(np.uint8)
 
-        depth = depth.cpu().numpy().astype(np.float32)
-
-        save_dir = os.path.join(OUTPUT_NPY, session)
+        save_dir = os.path.join(output, session)
         os.makedirs(save_dir, exist_ok=True)
 
         filename = os.path.basename(img_path)
-        filename_no_ext = os.path.splitext(filename)[0]
-        np.save(os.path.join(save_dir,filename_no_ext + ".npy"),depth)
-        
-        vis = depth.copy()
-        vis = vis - vis.min()
-        vis = vis / (vis.max() + 1e-8)
-        vis = (vis * 255).astype(np.uint8)
-        vis = cv2.applyColorMap(vis,cv2.COLORMAP_INFERNO)
-        save_dir_vis = os.path.join(OUTPUT_VIS,session)
-        os.makedirs(save_dir_vis, exist_ok=True)
-        cv2.imwrite(os.path.join(save_dir_vis, filename),vis)
+        cv2.imwrite(os.path.join(save_dir, filename), depth)
