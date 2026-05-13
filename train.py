@@ -84,7 +84,7 @@ def log_images(writer, imgs, preds, targets, epoch):
             epoch
         )
 
-num_epochs = 5
+num_epochs = 100
 
 train_losses = []
 val_losses = []
