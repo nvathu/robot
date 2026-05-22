@@ -81,19 +81,30 @@ class ResNetDepth(nn.Module):
 
 
         self.head = nn.Sequential(
-            nn.ConvTranspose2d(512, 256, kernel_size=2, stride=2),
+            nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True),
+            nn.Conv2d(512, 256, kernel_size=3, padding=1),
+            nn.BatchNorm2d(256),
             nn.ReLU(),
             
-            nn.ConvTranspose2d(256, 128, kernel_size=2, stride=2),
+            
+            nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True),
+            nn.Conv2d(256, 128, kernel_size=3, padding=1),
+            nn.BatchNorm2d(128),
             nn.ReLU(),
             
-            nn.ConvTranspose2d(128, 64, kernel_size=2, stride=2),
+            nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True),
+            nn.Conv2d(128, 64, kernel_size=3, padding=1),
+            nn.BatchNorm2d(64),
             nn.ReLU(),
             
-            nn.Conv2d(64, 32, 3, padding=1),
+           
+            nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True),
+            nn.Conv2d(64, 32, kernel_size=3, padding=1),
+            nn.BatchNorm2d(32),
             nn.ReLU(),
 
-            nn.Conv2d(32, 1, 1)  
+            
+            nn.Conv2d(32, 1, kernel_size=3, padding=1)  
         )
 
 
@@ -134,7 +145,7 @@ class ResNetDepth(nn.Module):
         x = self.head(x)
 
 
-        x = F.interpolate(x, size=(180, 180))
+        # x = F.interpolate(x, size=(180, 180))
 
         return x
 

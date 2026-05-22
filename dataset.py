@@ -46,3 +46,5 @@ class DepthDataset(Dataset):
         depth = torch.tensor(depth/255.).unsqueeze(0).float()
 
         return img, depth
+    
+   

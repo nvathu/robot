@@ -10,7 +10,7 @@ from PIL import Image
 
 REPO_DIR = '/home/thu/Thu/dinov3' 
 DEPTHER_CKPT = "/home/thu/Thu/dinov3/dinov3_vit7b16_synthmix_dpt_head-02040be1.pth"
-BACKBONE_CKPT = "/home/thu/Thu/dinov3/dinov3_vit7b16_pretrain_lvd1689m-a955f4ea.pth" 
+BACKBONE_CKPT = "/home/thu/Thu/dinov3/dinov3_vitb16_pretrain_lvd1689m-73cec8be.pth" 
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
