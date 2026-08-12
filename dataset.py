@@ -1,5 +1,6 @@
 import os
 import cv2
+import numpy as np
 import torch
 from torch.utils.data import Dataset
 
@@ -23,7 +24,9 @@ class DepthDataset(Dataset):
 
                         if f.endswith(".png"):
                             rgb = os.path.join(sub_path, f)
-                            depth = os.path.join(depth_root, session, f)
+                            file_name = os.path.splitext(f)[0]
+                            depth_file = f"{file_name}_depth.npy"
+                            depth = os.path.join(depth_root, session, depth_file)
 
                             if os.path.exists(depth):
                                 self.samples.append((rgb, depth))
@@ -39,12 +42,10 @@ class DepthDataset(Dataset):
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         img = cv2.resize(img, (180,180))
 
-        depth = cv2.imread(depth_path, cv2.IMREAD_GRAYSCALE)
+        depth = np.load(depth_path)
         depth = cv2.resize(depth, (180,180))
 
         img = torch.tensor(img/255.).permute(2,0,1).float()
-        depth = torch.tensor(depth/255.).unsqueeze(0).float()
+        depth = torch.tensor(depth).unsqueeze(0).float()
 
         return img, depth
-    
-   
