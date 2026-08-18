@@ -55,8 +55,8 @@ class ScaleInvariantLoss(nn.Module):
         self.lam = lam
 
     def forward(self, pred, target):
-        pred = torch.clamp(pred, 1e-6)
-        target = torch.clamp(target, 1e-6)
+        pred = torch.clamp(pred, 0.000001)
+        target = torch.clamp(target, 0.000001)
 
         d = torch.log(pred) - torch.log(target)
         mse = torch.mean(d**2)
@@ -90,17 +90,16 @@ smooth_l1_loss_fn = nn.SmoothL1Loss(beta=0.1)
 def compute_loss(pred, target):
     if pred.shape[2:] != target.shape[2:]:
         pred = F.interpolate(pred, size=target.shape[2:], mode="bilinear", align_corners=True)
-    pred = torch.sigmoid(pred)
+    pred = F.elu(pred) + 1.0 + 1e-3
+    target = target + 1e-3
+ 
 
-    pred_clamp = torch.clamp(pred, min=1e-3, max=1.0)
-    target_clamp = torch.clamp(target, min=1e-3, max=1.0)
-    l_ssi = ssi_loss_fn(pred_clamp, target_clamp)
-
+    l_ssi = ssi_loss_fn(pred, target)
     l_grad = grad_loss_fn(pred, target)
     l_ssim = 1.0 - ssim_loss_fn(pred, target)
     l_l1 = smooth_l1_loss_fn(pred, target)
 
-    total = 0.2 * l_ssi + 1.0 * l_grad + 0.2 * l_ssim + 2.0 * l_l1
+    total = 1.0 * l_ssi + 4.0 * l_grad + 0.5 * l_ssim + 1.5 * l_l1
     return total, l_ssi, l_grad, l_ssim
 
 
@@ -112,7 +111,13 @@ def to_inferno(tensor):
     if len(img.shape) == 3:
         img = img[0]
 
-    img = (img - img.min()) / (img.max() - img.min() + 1e-6)
+    img_min = img.min()
+    img_max = img.max()
+    
+    if (img_max - img_min) > 1e-6:
+        img = (img - img_min) / (img_max - img_min)
+    else:
+        img = np.zeros_like(img)
     img = (img * 255).astype(np.uint8)
     img = cv2.applyColorMap(img, cv2.COLORMAP_INFERNO)
     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
@@ -123,8 +128,9 @@ def to_inferno(tensor):
 
 def log_images(writer, imgs, preds, targets, epoch):
     N = min(10, imgs.shape[0])
-    
-    preds = torch.sigmoid(preds)
+
+    if preds.shape[2:] != targets.shape[2:]:
+        preds = F.interpolate(preds, size=targets.shape[2:], mode="bilinear", align_corners=True)
 
     for i in range(N):
         writer.add_image(f"Input/{i}", imgs[i].cpu(), epoch)
@@ -132,7 +138,7 @@ def log_images(writer, imgs, preds, targets, epoch):
         writer.add_image(f"GT/{i}", to_inferno(targets[i]), epoch)
 
 
-num_epochs = 20
+num_epochs = 100
 train_losses = []
 val_losses = []
 best_val_loss = 999999

@@ -70,7 +70,6 @@ class ResNetDepth(nn.Module):
         self.conv1 = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3)
         self.bn1 = nn.BatchNorm2d(64)
         self.relu = nn.ReLU()
-
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
 
         self.layer1 = self._make_layer(64, 2, stride=1)
@@ -80,32 +79,23 @@ class ResNetDepth(nn.Module):
 
 
 
-        self.head = nn.Sequential(
-            nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True),
-            nn.Conv2d(512, 256, kernel_size=3, padding=1),
-            nn.BatchNorm2d(256),
-            nn.ReLU(),
-            
-            
-            nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True),
-            nn.Conv2d(256, 128, kernel_size=3, padding=1),
-            nn.BatchNorm2d(128),
-            nn.ReLU(),
-            
-            nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True),
-            nn.Conv2d(128, 64, kernel_size=3, padding=1),
-            nn.BatchNorm2d(64),
-            nn.ReLU(),
-            
-           
-            nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True),
+        self.up4 = nn.Conv2d(512 + 256, 256, kernel_size=3, padding=1)
+        self.bn_up4 = nn.BatchNorm2d(256)
+
+        self.up3 = nn.Conv2d(256 + 128, 128, kernel_size=3, padding=1)
+        self.bn_up3 = nn.BatchNorm2d(128)
+
+        self.up2 = nn.Conv2d(128 + 64, 64, kernel_size=3, padding=1)
+        self.bn_up2 = nn.BatchNorm2d(64)
+
+        self.final_conv = nn.Sequential(
             nn.Conv2d(64, 32, kernel_size=3, padding=1),
             nn.BatchNorm2d(32),
             nn.ReLU(),
-
-            
-            nn.Conv2d(32, 1, kernel_size=3, padding=1)  
+            nn.Conv2d(32, 1, kernel_size=3, padding=1),
+            nn.ELU() 
         )
+
 
 
     def _make_layer(self, out_channels, blocks, stride):
@@ -134,18 +124,25 @@ class ResNetDepth(nn.Module):
         x = self.bn1(x)
         x = self.relu(x)
 
-        x = self.maxpool(x)  
+        p1 = self.maxpool(x)  
 
-        x = self.layer1(x)    
-        x = self.layer2(x)   
-        x = self.layer3(x)   
-        x = self.layer4(x)    
+        x_l1 = self.layer1(p1)    
+        x_l2 = self.layer2(x_l1)   
+        x_l3 = self.layer3(x_l2)   
+        x_l4 = self.layer4(x_l3)    
 
+        up_4 = F.interpolate(x_l4, size=x_l3.shape[2:], mode='bilinear', align_corners=True)
+        merge_4 = torch.cat([up_4, x_l3], dim=1)
+        out_4 = F.relu(self.bn_up4(self.up4(merge_4)))
 
-        x = self.head(x)
+        up_3 = F.interpolate(out_4, size=x_l2.shape[2:], mode='bilinear', align_corners=True)
+        merge_3 = torch.cat([up_3, x_l2], dim=1)
+        out_3 = F.relu(self.bn_up3(self.up3(merge_3)))
 
+        up_2 = F.interpolate(out_3, size=x_l1.shape[2:], mode='bilinear', align_corners=True)
+        merge_2 = torch.cat([up_2, x_l1], dim=1)
+        out_2 = F.relu(self.bn_up2(self.up2(merge_2)))
 
-        # x = F.interpolate(x, size=(180, 180))
+        out = self.final_conv(out_2)
 
-        return x
-
+        return out
