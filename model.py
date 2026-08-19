@@ -87,13 +87,17 @@ class ResNetDepth(nn.Module):
 
         self.up2 = nn.Conv2d(128 + 64, 64, kernel_size=3, padding=1)
         self.bn_up2 = nn.BatchNorm2d(64)
+        self.up1 = nn.Conv2d(64 + 64, 32, kernel_size=3, padding=1)  
+        self.bn_up1 = nn.BatchNorm2d(32)
+
+        self.up0 = nn.Conv2d(32, 16, kernel_size=3, padding=1)  
+        self.bn_up0 = nn.BatchNorm2d(16)
 
         self.final_conv = nn.Sequential(
-            nn.Conv2d(64, 32, kernel_size=3, padding=1),
-            nn.BatchNorm2d(32),
+            nn.Conv2d(16, 16, kernel_size=3, padding=1),
+            nn.BatchNorm2d(16),
             nn.ReLU(),
-            nn.Conv2d(32, 1, kernel_size=3, padding=1),
-            nn.ELU() 
+            nn.Conv2d(16, 1, kernel_size=3, padding=1)
         )
 
 
@@ -118,7 +122,7 @@ class ResNetDepth(nn.Module):
 
 
     def forward(self, x):
-
+        input_size = x.shape[2:] 
 
         x = self.conv1(x)   
         x = self.bn1(x)
@@ -143,6 +147,13 @@ class ResNetDepth(nn.Module):
         merge_2 = torch.cat([up_2, x_l1], dim=1)
         out_2 = F.relu(self.bn_up2(self.up2(merge_2)))
 
-        out = self.final_conv(out_2)
+        up_1 = F.interpolate(out_2, size=p1.shape[2:], mode='bilinear', align_corners=True)
+        merge_1 = torch.cat([up_1, p1], dim=1)
+        out_1 = F.relu(self.bn_up1(self.up1(merge_1)))
+
+        up_0 = F.interpolate(out_1, size=input_size, mode='bilinear', align_corners=True)
+        out_0 = F.relu(self.bn_up0(self.up0(up_0)))
+
+        out = self.final_conv(out_0)
 
         return out

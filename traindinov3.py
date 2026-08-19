@@ -30,14 +30,18 @@ os.makedirs("./weights", exist_ok=True)
 run_name = datetime.now().strftime("%Y%m%d-%H%M%S")
 writer = SummaryWriter(f"./runs/{run_name}")
 
-dataset = DepthDataset("./dataset/rgb", "./dataset/dino_depth")
-total_size = len(dataset)
+full_dataset = DepthDataset("./dataset/rgb", "./dataset/dino_depth")
+total_size = len(full_dataset)
 
 train_size = int(0.8 * total_size)
 val_size = int(0.1 * total_size)
 test_size = total_size - train_size - val_size
 
-train_set, val_set, test_set = random_split(dataset, [train_size, val_size, test_size])
+torch.manual_seed(42)
+train_set, val_set, test_set = random_split(
+    full_dataset, [train_size, val_size, test_size],
+    generator=torch.Generator().manual_seed(42)
+)
 
 train_loader = DataLoader(train_set, batch_size=8, shuffle=True, num_workers=8)
 val_loader = DataLoader(val_set, batch_size=8, shuffle=False, num_workers=8)
@@ -91,15 +95,21 @@ def compute_loss(pred, target):
     if pred.shape[2:] != target.shape[2:]:
         pred = F.interpolate(pred, size=target.shape[2:], mode="bilinear", align_corners=True)
     pred = F.elu(pred) + 1.0 + 1e-3
-    target = target + 1e-3
+    target = target + 1e-31
  
 
     l_ssi = ssi_loss_fn(pred, target)
     l_grad = grad_loss_fn(pred, target)
-    l_ssim = 1.0 - ssim_loss_fn(pred, target)
+    def normalize_for_ssim(x):
+        b = x.shape[0]
+        x_flat = x.view(b, -1)
+        x_min = x_flat.min(dim=1)[0].view(b, 1, 1, 1)
+        x_max = x_flat.max(dim=1)[0].view(b, 1, 1, 1)
+        return (x - x_min) / (x_max - x_min + 1e-6)
+    l_ssim = 1.0 - ssim_loss_fn(normalize_for_ssim(pred), normalize_for_ssim(target))
     l_l1 = smooth_l1_loss_fn(pred, target)
 
-    total = 1.0 * l_ssi + 4.0 * l_grad + 0.5 * l_ssim + 1.5 * l_l1
+    total = 1.0 * l_ssi + 4.0 * l_grad + 0.5 * l_ssim + 0.5 * l_l1
     return total, l_ssi, l_grad, l_ssim
 
 
@@ -209,7 +219,7 @@ end_time = time.time()
 print(f"\nTraining Time: {(end_time-start_time)/60:.2f} min")
 
 
-model.load_state_dict(torch.load("./weights/best_model.pth"))
+model.load_state_dict(torch.load("./weights/best_model.pth", map_location=device))
 model.eval()
 test_loss = 0
 
