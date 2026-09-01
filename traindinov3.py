@@ -30,7 +30,7 @@ os.makedirs("./weights", exist_ok=True)
 run_name = datetime.now().strftime("%Y%m%d-%H%M%S")
 writer = SummaryWriter(f"./runs/{run_name}")
 
-full_dataset = DepthDataset("./dataset/rgb", "./dataset/dino_depth")
+full_dataset = DepthDataset("./dataset/rgb_dino", "./dataset/dino_depth")
 total_size = len(full_dataset)
 
 train_size = int(0.8 * total_size)
@@ -86,7 +86,7 @@ class GradientLoss(nn.Module):
         return loss_x + loss_y
 
 
-ssi_loss_fn = ScaleInvariantLoss()
+ssi_loss_fn = ScaleInvariantLoss(lam=0.0)
 grad_loss_fn = GradientLoss()
 ssim_loss_fn = SSIM(data_range=1.0, size_average=True, channel=1)
 smooth_l1_loss_fn = nn.SmoothL1Loss(beta=0.1)
@@ -109,7 +109,7 @@ def compute_loss(pred, target):
     l_ssim = 1.0 - ssim_loss_fn(normalize_for_ssim(pred), normalize_for_ssim(target))
     l_l1 = smooth_l1_loss_fn(pred, target)
 
-    total = 1.0 * l_ssi + 4.0 * l_grad + 0.5 * l_ssim + 0.5 * l_l1
+    total = 0.3 * l_ssi + 1.0 * l_grad + 0.5 * l_ssim + 3.0 * l_l1
     return total, l_ssi, l_grad, l_ssim
 
 
