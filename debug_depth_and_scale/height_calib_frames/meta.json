@@ -1,0 +1,34 @@
+[
+  {
+    "sample": 0,
+    "csv_idx": 20870,
+    "forward_m": 0.31190533606122306,
+    "lateral_m": 0.14921324105600933,
+    "u_expected": 101.37100648836162,
+    "file": "debug_depth_and_scale/height_calib_frames/sample_0_csvidx20870_forward0.31m.png"
+  },
+  {
+    "sample": 1,
+    "csv_idx": 9248,
+    "forward_m": 0.6507632486174987,
+    "lateral_m": -0.005526133313546666,
+    "u_expected": 323.88080244838613,
+    "file": "debug_depth_and_scale/height_calib_frames/sample_1_csvidx9248_forward0.65m.png"
+  },
+  {
+    "sample": 2,
+    "csv_idx": 6098,
+    "forward_m": 0.9052237091673849,
+    "lateral_m": -0.004862446506896305,
+    "u_expected": 322.4548339037567,
+    "file": "debug_depth_and_scale/height_calib_frames/sample_2_csvidx6098_forward0.91m.png"
+  },
+  {
+    "sample": 3,
+    "csv_idx": 13739,
+    "forward_m": 2.2009468065946525,
+    "lateral_m": -0.02954393763994608,
+    "u_expected": 326.1345403569598,
+    "file": "debug_depth_and_scale/height_calib_frames/sample_3_csvidx13739_forward2.20m.png"
+  }
+]
