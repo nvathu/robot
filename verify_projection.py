@@ -1,88 +1,120 @@
-
-import json, glob, os
+import cv2, json, glob, os, shutil
 import pandas as pd
 import numpy as np
-from geometric_projection import world_to_camera_frame
+from geometric_projection import get_target_pixel
 
+SESSION = "2025_0813_1543-S3"
+IMG_DIR = f"dataset/rgb_dino/{SESSION}/20250813"
 POSE_CSV = "dataset/poses/records_20250813-1535-S3.csv"
-OUTPUT_DIR = "dataset/pointclouds"
-TARGET_ROBOTS = ["S1", "S2"]
-FRAME_STEP = 20
-FLOOR_GRID_SPACING = 0.1
-FLOOR_MARGIN = 0.3
+INTRINSICS_PATH = "dataset/calib/intrinsics.json"
+OUTPUT_DIR = "debug_projection"
+TARGET_ROBOTS = {
+    "S1": (0, 0, 255),
+    "S2": (255, 0, 0),
+}
+MAX_TS_GAP = 0.03
+MARGIN_RATIO = 0.15
+TEST_INDICES = [78, 156, 312, 390, 624, 702, 858, 936, 1092, 1170, 1248, 1326]
+
+with open(INTRINSICS_PATH) as f:
+    K = json.load(f)
 
 df = pd.read_csv(POSE_CSV)
-print(f"Total CSV rows: {len(df)}")
+img_files = sorted(glob.glob(f"{IMG_DIR}/*.png"))
+print(f"Total images in folder: {len(img_files)}")
 
-def transform_to_world(X_local, Z_local, self_pose):
-    angle = np.radians(self_pose['angle'])
-    c, s = np.cos(angle), np.sin(angle)
-    X_world = c * X_local + s * Z_local
-    Z_world = -s * X_local + c * Z_local
-    x_final = X_world + self_pose['x'] / 1000.0
-    z_final = Z_world + self_pose['y'] / 1000.0
-    return x_final, z_final
+def get_ts_from_filename(filepath):
+    name = os.path.splitext(os.path.basename(filepath))[0]
+    return int(name.replace("image_", "")) / 1e9
 
-high_acc_points = []
-high_acc_colors = []
+img_timestamps = np.array([get_ts_from_filename(f) for f in img_files])
 
-for idx in range(0, len(df), FRAME_STEP):
-    row = df.iloc[idx]
-    self_pose = {'x': row['self_pose_x'], 'y': row['self_pose_y'], 'angle': row['self_pose_angle']}
+def circular_interp(angles, weights):
+    sin_avg = np.average(np.sin(angles), weights=weights)
+    cos_avg = np.average(np.cos(angles), weights=weights)
+    return np.arctan2(sin_avg, cos_avg)
 
-    for tgt in TARGET_ROBOTS:
-        tx_col, ty_col = f'car_{tgt}_pose_x', f'car_{tgt}_pose_y'
-        if tx_col not in row or pd.isna(row[tx_col]):
+def interpolate_pose(df, image_timestamp, max_gap=0.1):
+    ts = df['pose_timestamp'].values / 1e9
+    idx = np.searchsorted(ts, image_timestamp)
+    if idx == 0 or idx >= len(df):
+        return None
+    t0, t1 = ts[idx-1], ts[idx]
+    if (image_timestamp - t0) > max_gap or (t1 - image_timestamp) > max_gap:
+        return None
+    alpha = (image_timestamp - t0) / (t1 - t0 + 1e-9)
+    row0, row1 = df.iloc[idx-1], df.iloc[idx]
+    result = {}
+    for col in df.columns:
+        if col in ('pose_timestamp', 'image', 'image_timestamp'):
             continue
+        if col.endswith('_angle'):
+            angle0 = np.radians(row0[col]) if 'self' in col else row0[col]
+            angle1 = np.radians(row1[col]) if 'self' in col else row1[col]
+            result[col] = np.degrees(circular_interp(
+                np.array([angle0, angle1]), weights=[1-alpha, alpha]
+            ))
+        else:
+            result[col] = (1-alpha)*row0[col] + alpha*row1[col]
+    return result
 
-        target_pose = {'x': row[tx_col], 'y': row[ty_col]}
-
-        forward, lateral = world_to_camera_frame(
-            self_pose['x'], self_pose['y'], self_pose['angle'],
-            target_pose['x'], target_pose['y']
-        )
-
-        Z = forward / 1000.0
-        X = lateral / 1000.0
-        if Z <= 0:
-            continue
-
-        x_w, z_w = transform_to_world(X, Z, self_pose)
-        high_acc_points.append([x_w, 0.0, z_w])
-        high_acc_colors.append([1.0, 0.0, 0.0])
-
-high_acc_points = np.array(high_acc_points) if high_acc_points else np.zeros((0, 3))
-high_acc_colors = np.array(high_acc_colors) if high_acc_colors else np.zeros((0, 3))
-print(f"High-accuracy points (world frame): {len(high_acc_points)}")
-
-all_x = np.concatenate([
-    df['self_pose_x'].dropna().values,
-    *[df[f'car_{t}_pose_x'].dropna().values for t in TARGET_ROBOTS if f'car_{t}_pose_x' in df.columns]
-]) / 1000.0
-
-all_y = np.concatenate([
-    df['self_pose_y'].dropna().values,
-    *[df[f'car_{t}_pose_y'].dropna().values for t in TARGET_ROBOTS if f'car_{t}_pose_y' in df.columns]
-]) / 1000.0
-
-x_min, x_max = all_x.min() - FLOOR_MARGIN, all_x.max() + FLOOR_MARGIN
-z_min, z_max = all_y.min() - FLOOR_MARGIN, all_y.max() + FLOOR_MARGIN
-print(f"Floor region (world frame): X=[{x_min:.2f},{x_max:.2f}], Z=[{z_min:.2f},{z_max:.2f}]")
-
-x_grid = np.arange(x_min, x_max, FLOOR_GRID_SPACING)
-z_grid = np.arange(z_min, z_max, FLOOR_GRID_SPACING)
-xx, zz = np.meshgrid(x_grid, z_grid)
-floor_points = np.stack([xx.ravel(), np.zeros(xx.size), zz.ravel()], axis=1)
-floor_colors = np.tile([0.7, 0.7, 0.7], (len(floor_points), 1))
-print(f"Floor points (synthetic grid): {len(floor_points)}")
-
+if os.path.exists(OUTPUT_DIR):
+    shutil.rmtree(OUTPUT_DIR)
 os.makedirs(OUTPUT_DIR, exist_ok=True)
-out_path = os.path.join(OUTPUT_DIR, "full_auto_pointcloud.npz")
-np.savez(out_path,
-         high_acc_points=high_acc_points,
-         high_acc_colors=high_acc_colors,
-         floor_points=floor_points,
-         floor_colors=floor_colors)
 
-print(f"Saved: {out_path}")
-print("Pipeline completed.")
+count = 0
+for img_idx in TEST_INDICES:
+    if img_idx >= len(img_files):
+        print(f"  Skipping idx={img_idx}: exceeds available images ({len(img_files)})")
+        continue
+
+    img_path = img_files[img_idx]
+    img_ts = img_timestamps[img_idx]
+
+    interpolated = interpolate_pose(df, img_ts, max_gap=MAX_TS_GAP)
+    if interpolated is None:
+        print(f"  idx={img_idx}: pose interpolation failed")
+        continue
+
+    self_pose = {
+        'x': interpolated['self_pose_x'],
+        'y': interpolated['self_pose_y'],
+        'angle': interpolated['self_pose_angle'],
+    }
+
+    img = cv2.imread(img_path)
+    if img is None:
+        continue
+
+    drawn_any = False
+    for tgt, color in TARGET_ROBOTS.items():
+        tx_col, ty_col = f'car_{tgt}_pose_x', f'car_{tgt}_pose_y'
+        if tx_col not in interpolated or pd.isna(interpolated[tx_col]) or pd.isna(interpolated[ty_col]):
+            continue
+
+        target_pose = {'x': interpolated[tx_col], 'y': interpolated[ty_col]}
+        pixel = get_target_pixel(self_pose, target_pose, K, margin_ratio=MARGIN_RATIO)
+        if pixel is None:
+            continue
+
+        u, v = pixel
+        print(f"  idx={img_idx} {tgt}: computed (u,v) = ({u:.1f}, {v:.1f})")
+
+        d_true = np.hypot(target_pose['x'] - self_pose['x'],
+                           target_pose['y'] - self_pose['y']) / 1000.0
+
+        cv2.circle(img, (int(u), int(v)), 10, color, 2)
+        cv2.putText(img, f"{tgt} ({d_true:.2f}m)", (int(u) + 12, int(v)),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.55, color, 2)
+        drawn_any = True
+
+    if not drawn_any:
+        print(f"  idx={img_idx}: no robot inside FOV")
+        continue
+
+    out_path = os.path.join(OUTPUT_DIR, f"check_{img_idx}.png")
+    cv2.imwrite(out_path, img)
+    count += 1
+    print(f"  Saved {out_path}")
+
+print(f"\nSaved {count}/{len(TEST_INDICES)} images to {OUTPUT_DIR}/")
